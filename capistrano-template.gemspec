@@ -23,7 +23,7 @@ the remote host or the content did change)
 
   spec.has_rdoc = 'yard'
 
-  spec.required_ruby_version = '>= 2.0.0'
+  spec.required_ruby_version = '>= 2.7.0'
   spec.add_dependency 'capistrano', '~> 3.0'
 
   spec.add_development_dependency 'bundler', '~> 1.5'
