@@ -6,7 +6,7 @@ module Capistrano
 
         def initialize(from, context, reader: File, locals: {})
           super context
-
+          @scope = context
           self.from = from
           self.reader = reader
           self.locals = locals
@@ -19,16 +19,19 @@ module Capistrano
         end
 
         def as_str
-          @rendered_template ||= ERB.new(template_content, nil, '-').result(binding)
+          @rendered_template ||= begin
+            ctx = ErbBinding.new(@scope, locals)
+            ERB.new(template_content, trim_mode: '-').result(ctx.get_binding)
+          end
         end
 
         def as_io
           StringIO.new(as_str)
         end
 
-        def method_missing(m, *args, &block)
-          if locals.key?(m)
-            locals[m]
+        def method_missing(method_name, *args, &block)
+          if @scope.respond_to?(method_name)
+            @scope.send(method_name, *args, &block)
           else
             super
           end
@@ -45,18 +48,41 @@ module Capistrano
           content.split("\n").map { |line| "#{' ' * indent}#{line}" }.join("\n")
         end
 
-        def respond_to_missing?(m, include_private)
-          if locals.key?(m)
-            true
-          else
-            super
-          end
+        def respond_to_missing?(method_name, include_private = false)
+          @scope.respond_to?(method_name) || super
         end
 
         protected
 
         def template_content
           reader.read(from)
+        end
+
+        private
+
+        class ErbBinding
+          def initialize(scope, locals)
+            @scope = scope
+            locals.each do |key, value|
+              singleton_class.define_method(key) { value }
+            end
+          end
+
+          def method_missing(method_name, *args, &block)
+            if @scope.respond_to?(method_name)
+              @scope.send(method_name, *args, &block)
+            else
+              super
+            end
+          end
+
+          def respond_to_missing?(method_name, include_private = false)
+            @scope.respond_to?(method_name) || super
+          end
+
+          def get_binding
+            binding
+          end
         end
       end
     end
